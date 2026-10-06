@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpreadHunter — Сканер крипто-арбітражу (Bybit · MEXC · KuCoin · OKX · BingX · Gate · HTX)</title>
+<style>
+  :root{
+    --bg:#0a0e17; --panel:#111827; --panel2:#0d1420; --border:#1f2b3d;
+    --green:#00e676; --red:#ff5252; --accent:#ffb300; --text:#dbe4f0; --dim:#7a8aa0;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:'Segoe UI',Roboto,Arial,sans-serif;min-height:100vh}
+  header{padding:18px 24px;background:linear-gradient(90deg,#0d1420,#111827);border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between}
+  h1{font-size:20px;letter-spacing:.5px}
+  h1 span{color:var(--accent)}
+  .controls{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+  .ctrl{display:flex;flex-direction:column;gap:4px}
+  .ctrl label{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.8px}
+  input,select,button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-size:14px;outline:none}
+  input:focus,select:focus{border-color:var(--accent)}
+  button{cursor:pointer;font-weight:600;transition:.15s}
+  button:hover{border-color:var(--accent);transform:translateY(-1px)}
+  button.primary{background:var(--accent);color:#111;border-color:var(--accent)}
+  button:disabled{opacity:.5;cursor:wait;transform:none}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;padding:16px 24px}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+  .card .v{font-size:24px;font-weight:700;margin-top:4px}
+  .card .l{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:.8px}
+  .exch-status{display:flex;gap:8px;flex-wrap:wrap;padding:0 24px 8px}
+  .badge{font-size:12px;padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--dim)}
+  .badge.ok{color:var(--green);border-color:rgba(0,230,118,.4)}
+  .badge.err{color:var(--red);border-color:rgba(255,82,82,.4)}
+  .badge.load{color:var(--accent);border-color:rgba(255,179,0,.4)}
+  main{padding:8px 24px 40px}
+  .toolbar{display:flex;gap:12px;align-items:center;margin:10px 0 14px;flex-wrap:wrap}
+  .toolbar input{flex:1;min-width:200px}
+  table{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+  th,td{padding:10px 12px;text-align:right;font-size:14px;border-bottom:1px solid var(--border);white-space:nowrap}
+  th{background:var(--panel2);color:var(--dim);font-size:11px;text-transform:uppercase;letter-spacing:.8px;position:sticky;top:0}
+  td.pair,th.pair{text-align:left;font-weight:700}
+  tr:hover td{background:rgba(255,179,0,.05)}
+  tr.new td{animation:flash 2s}
+  @keyframes flash{0%{background:rgba(0,230,118,.25)}100%{background:transparent}}
+  .sp{font-weight:800;font-size:15px}
+  .sp.big{color:var(--green)}
+  .ex{color:var(--dim);font-size:11px;display:block}
+  .detail td{background:var(--panel2);text-align:left;white-space:normal}
+  .detail table{border:none}
+  .note{color:var(--dim);font-size:12px;margin-top:16px;line-height:1.6}
+  #log{font-family:monospace;font-size:12px;color:var(--dim);max-height:90px;overflow:auto;margin-top:10px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:8px}
+  a{color:var(--accent)}
+  @media(max-width:720px){th:nth-child(6),td:nth-child(6){display:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ Spread<span>Hunter</span> — сканер спредів ≥ <span id="hdrTh">5</span>%</h1>
+  <div class="controls">
+    <div class="ctrl"><label>Поріг спреду, %</label><input id="threshold" type="number" value="5" step="0.1" min="0.1" style="width:90px"></div>
+    <div class="ctrl"><label>Мін. котирувань</label><input id="minEx" type="number" value="2" min="2" max="7" style="width:70px"></div>
+    <div class="ctrl"><label>Фільтр пари</label><input id="pairFilter" type="text" placeholder="BTC, USDT…" style="width:120px"></div>
+    <div class="ctrl"><label>Автооновлення</label>
+      <select id="interval"><option value="0">Вимк</option><option value="15000" selected>15 с</option><option value="30000">30 с</option><option value="60000">60 с</option></select>
+    </div>
+    <div class="ctrl"><label>Режим</label>
+      <select id="mode">
+        <option value="th">Спреди ≥ порогу</option>
+        <option value="top">ТОП-50 всіх спредів</option>
+        <option value="coin">Пошук монети</option>
+      </select>
+    </div>
+    <div class="ctrl"><label>CORS-проксі</label>
+      <select id="proxy">
+        <option value="auto" selected>АВТО (рекоменд.)</option>
+        <option value="direct">Напряму</option>
+        <option value="corsproxy">corsproxy.io</option>
+        <option value="allorigins">allorigins.win</option>
+        <option value="codetabs">codetabs</option>
+      </select>
+    </div>
+    <button class="primary" id="scanBtn" onclick="scan()">▶ СКАНУВАТИ</button>
+  </div>
+</header>
+
+<div class="exch-status" id="exchStatus"></div>
+
+<div class="stats">
+  <div class="card"><div class="l">Проскановано пар</div><div class="v" id="stPairs">0</div></div>
+  <div class="card"><div class="l">Арб. можливостей</div><div class="v" id="stOpps" style="color:var(--green)">0</div></div>
+  <div class="card"><div class="l">Найбільший спред</div><div class="v" id="stBest" style="color:var(--accent)">—</div></div>
+  <div class="card"><div class="l">Останнє оновлення</div><div class="v" id="stTime" style="font-size:16px">—</div></div>
+</div>
+
+<main>
+  <table>
+    <thead><tr>
+      <th class="pair">Пара</th><th>Купити (Ask)</th><th>Продати (Bid)</th><th>Спред %</th><th>Прибуток*</th><th>Ціни на всіх біржах</th>
+    </tr></thead>
+    <tbody id="tbody"><tr><td colspan="6" style="text-align:center;color:var(--dim);padding:30px">Натисніть «СКАНУВАТИ»</td></tbody>
+  </table>
+  <div id="log"></div>
+  <p class="note">
+    *Прибуток з $10 000 до комісій. Дані — публічні API спотових тікерів: Bybit v5, MEXC v3, KuCoin v1, OKX v5, BingX spot v1, Gate.io v4, HTX (Huobi) market.
+    Якщо біржа блокує браузерні запити (CORS/гео), увімкніть проксі у випадаючому списку або скануйте з сервера/VPN.
+    У реальній угоді враховуйте комісії (~0.1–0.2%), глибину стакана, швидкість виводу/депозиту та ризик. Не є фінансовою порадою.
+  </p>
+</main>
+
+<script>
+/* ================= КОНФІГУРАЦІЯ БІРЖ ================= */
+const EXCHANGES = {
+  bybit: {
+    name:'Bybit', color:'#f7a600',
+    url:'https://api.bybit.com/v5/market/tickers?category=spot',
+    parse: d => (d.result.list||[]).map(t=>({sym:t.symbol, bid:+t.bid1Price, ask:+t.ask1Price, last:+t.lastPrice}))
+  },
+  mexc: {
+    name:'MEXC', color:'#2ebd85',
+    url:'https://api.mexc.com/api/v3/ticker/bookTicker',
+    parse: d => (Array.isArray(d)?d:[]).map(t=>({sym:t.symbol, bid:+t.bidPrice, ask:+t.askPrice, last:+t.bidPrice}))
+  },
+  kucoin: {
+    name:'KuCoin', color:'#24ae8f',
+    url:'https://api.kucoin.com/api/v1/market/allTickers',
+    parse: d => ((d.data&&d.data.ticker)||[]).map(t=>({sym:(t.symbolName||t.symbol).replace('-','/'), bid:+t.buy, ask:+t.sell, last:+t.last}))
+  },
+  okx: {
+    name:'OKX', color:'#c9c9c9',
+    url:'https://www.okx.com/api/v5/market/tickers?instType=SPOT',
+    parse: d => (d.data||[]).map(t=>({sym:t.instId.replace('-','/'), bid:+t.bidPx, ask:+t.askPx, last:+t.last}))
+  },
+  bingx: {
+    name:'BingX', color:'#f0b90b',
+    url:'https://open-api.bingx.com/openApi/spot/v1/ticker/24hr',
+    parse: d => ((d.data&&d.data.length?d.data:d.data&&d.data.symbols)||[]).map(t=>({sym:(t.symbol||'').replace('-','/'), bid:+t.bidPrice, ask:+t.askPrice, last:+t.lastPrice}))
+  },
+  gate: {
+    name:'Gate.io', color:'#2354e6',
+    url:'https://api.gateio.ws/api/v4/spot/tickers',
+    headers:{'Accept':'application/json'},
+    parse: d => (Array.isArray(d)?d:[]).map(t=>({sym:t.currency_pair, bid:+t.highest_bid, ask:+t.lowest_ask, last:+t.last}))
+  },
+  htx: {
+    name:'HTX', color:'#4a90d9',
+    url:'https://api.huobi.pro/market/tickers',
+    parse: d => (d.data||[]).map(t=>({sym:t.symbol.toUpperCase().replace(/(BTC|ETH|USDT|USDD|USDC|TRX|HT|XRP|DOGE|SOL|TON)$/,'$1').replace(/([A-Z]+)(BTC|ETH|USDT|USDD|USDC|TRX|HT|XRP|DOGE|SOL|TON)$/,'$1/$2'), bid:+t.bid, ask:+t.ask, last:+t.close}))
+  }
+};
+
+/* ================= УТИЛІТИ ================= */
+const $ = id => document.getElementById(id);
+const seen = new Set();
+let scanning = false;
+
+function normalize(sym){
+  if(!sym) return null;
+  sym = sym.toUpperCase().trim();
+  if(sym.includes('/')) return sym;
+  const m = sym.match(/^([A-Z0-9]+)(USDT|USDC|USDD|BTC|ETH|FDUSD|TRY|TRX|TON|XRP)$/);
+  if(m) return m[1]+'/'+m[2];
+  return null;
+}
+function logMsg(m){
+  const el=$('log'); const t=new Date().toLocaleTimeString();
+  el.innerHTML = `<div>[${t}] ${m}</div>` + el.innerHTML;
+  el.innerHTML = el.innerHTML.split('</div>').slice(0,14).join('</div>')+'</div>';
+}
+const PROXIES = {
+  direct:  u => u,
+  corsproxy: u => 'https://corsproxy.io/?url='+encodeURIComponent(u),
+  allorigins: u => 'https://api.allorigins.win/raw?url='+encodeURIComponent(u),
+  codetabs: u => 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u)
+};
+async function fetchOne(url, headers){
+  const ctrl=new AbortController(); const to=setTimeout(()=>ctrl.abort(),10000);
+  try{
+    const r=await fetch(url,{signal:ctrl.signal,headers:headers||{}});
+    if(!r.ok) throw new Error('HTTP '+r.status);
+    return await r.json();
+  }finally{clearTimeout(to);}
+}
+async function fetchEx(id){
+  const ex=EXCHANGES[id];
+  const pref=$('proxy').value;
+  // АВТО: перебираємо проксі, поки біржа не відповість
+  const order = pref==='auto' ? ['direct','corsproxy','allorigins','codetabs'] : [pref,'corsproxy','allorigins','direct','codetabs'];
+  let lastErr='';
+  for(const p of order){
+    try{
+      const d=await fetchOne(PROXIES[p](ex.url), ex.headers);
+      const rows=ex.parse(d).filter(x=>x.bid>0&&x.ask>0&&isFinite(x.bid)&&isFinite(x.ask));
+      if(rows.length) return {id, ok:true, rows, via:p};
+      lastErr='порожня відповідь';
+    }catch(e){ lastErr=e.message; }
+  }
+  return {id, ok:false, rows:[], err:lastErr};
+}
+function renderStatus(statuses){
+  $('exchStatus').innerHTML = Object.keys(EXCHANGES).map(id=>{
+    const s=statuses.find(x=>x.id===id); const ex=EXCHANGES[id];
+    let cls='load', txt=ex.name+' …';
+    if(s){ if(s.ok){cls='ok'; txt=`${ex.name} ✓ ${s.rows.length}${s.via&&s.via!=='direct'?' ·'+s.via:''}`;} else {cls='err'; txt=`${ex.name} ✗`; } }
+    return `<span class="badge ${cls}" title="${s&&s.err?ex.name+': '+s.err:''}" style="border-color:${ex.color}55">${txt}</span>`;
+  }).join('');
+}
+
+/* ================= ОБЧИСЛЕННЯ СПРЕДІВ ================= */
+function computeOpps(data, th, minEx, filter){
+  const book = new Map(); // sym -> [{ex,bid,ask,last}]
+  data.forEach(s=> s.rows.forEach(r=>{
+    const sym = normalize(r.sym); if(!sym) return;
+    if(!book.has(sym)) book.set(sym,[]);
+    book.get(sym).push({ex:s.id, bid:r.bid, ask:r.ask, last:r.last});
+  }));
+  const opps=[];
+  const mode=$('mode').value;
+  book.forEach((lst,sym)=>{
+    if(lst.length<minEx) return;
+    if(filter && !sym.includes(filter.toUpperCase())) return;
+    let buy=lst[0], sell=lst[0];
+    lst.forEach(p=>{ if(p.ask<buy.ask) buy=p; if(p.bid>sell.bid) sell=p; });
+    if(buy.ex===sell.ex) return;
+    const spread=(sell.bid-buy.ask)/buy.ask*100;
+    if(spread>0) opps.push({sym,buy,sell,spread,all:lst});
+  });
+  opps.sort((a,b)=>b.spread-a.spread);
+  let out;
+  if(mode==='top') out=opps.slice(0,50);
+  else if(mode==='coin') out=opps.slice(0,200);
+  else out=opps.filter(o=>o.spread>=th);
+  return {opps:out, total:book.size, scanned:opps.length};
+}
+
+/* ================= РЕНДЕР ================= */
+function fmt(n){ return n>=1? n.toLocaleString('en-US',{maximumFractionDigits:6}) : n.toPrecision(6); }
+function render(opps,total){
+  $('stPairs').textContent=total;
+  $('stOpps').textContent=opps.length;
+  $('stBest').textContent=opps.length? opps[0].spread.toFixed(2)+'%' : '—';
+  $('stTime').textContent=new Date().toLocaleTimeString();
+  if(!opps.length){
+    $('tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:30px">Нічого не знайдено. Перевірте, що всі біржі зелені у статусі вище — якщо червоні, увімкніть режим проксі «АВТО» і натисніть СКАНУВАТИ ще раз. Також спробуйте режим «ТОП-50 всіх спредів».</td></tbody>';
+    return;
+  }
+  $('tbody').innerHTML = opps.map((o,i)=>{
+    const profit=(10000*o.spread/100).toFixed(0);
+    const isNew=!seen.has(o.sym); seen.add(o.sym);
+    const others=o.all.map(p=>`<div style="display:inline-block;margin:2px 8px 2px 0"><b style="color:${EXCHANGES[p.ex].color}">${EXCHANGES[p.ex].name}</b> bid ${fmt(p.bid)} · ask ${fmt(p.ask)}</div>`).join('');
+    return `<tr class="${isNew?'new':''}" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='table-row'?'none':'table-row'">
+      <td class="pair">${o.sym}</td>
+      <td>${fmt(o.buy.ask)}<span class="ex" style="color:${EXCHANGES[o.buy.ex].color}">▲ ${EXCHANGES[o.buy.ex].name}</span></td>
+      <td>${fmt(o.sell.bid)}<span class="ex" style="color:${EXCHANGES[o.sell.ex].color}">▼ ${EXCHANGES[o.sell.ex].name}</span></td>
+      <td class="sp big">+${o.spread.toFixed(2)}%</td>
+      <td>$${(+profit).toLocaleString()}</td>
+      <td style="text-align:left;color:var(--dim);font-size:12px;max-width:320px;white-space:normal">натисніть, щоб розгорнути ${o.all.length} бірж</td>
+    </tr>
+    <tr class="detail" style="display:none"><td colspan="6">${others}</td></tr>`;
+  }).join('');
+}
+
+/* ================= СКАНУВАННЯ ================= */
+window.onerror=(m,s,l)=>logMsg('❌ ПОМИЛКА JS: '+m+' (рядок '+l+')');
+async function scan(){
+  if(scanning) return; scanning=true;
+  logMsg('▶ Кнопку натиснуто, стартую…');
+  const btn=$('scanBtn'); btn.disabled=true; btn.textContent='⏳ СКАНУЮ…';
+  try{
+  seen.size && seen.clear();
+  const th=parseFloat($('threshold').value)||5;
+  const minEx=parseInt($('minEx').value)||2;
+  const filter=$('pairFilter').value.trim();
+  $('hdrTh').textContent=th;
+  $('tbody').innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--dim);padding:30px">Завантаження даних з 7 бірж…</td></tbody>';
+  const t0=performance.now();
+  const results=await Promise.all(Object.keys(EXCHANGES).map(fetchEx));
+  renderStatus(results);
+  const okEx=results.filter(r=>r.ok);
+  results.forEach(r=> logMsg(`${EXCHANGES[r.id].name}: ${r.ok? r.rows.length+' пар'+(r.via&&r.via!=='direct'?' через '+r.via:''):'ПОМИЛКА ('+r.err+')'}`));
+  const {opps,total,scanned}=computeOpps(okEx,th,minEx,filter);
+  render(opps,total);
+  logMsg(`Готово за ${((performance.now()-t0)/1000).toFixed(1)}с · ${okEx.length}/7 бірж · ${total} пар у каталозі · ${scanned} з крос-біржовим спредом · показано ${opps.length}`);
+  scanning=false; btn.disabled=false; btn.textContent='▶ СКАНУВАТИ';
+  }catch(e){ logMsg('❌ КРИТИЧНА ПОМИЛКА: '+e.message); scanning=false; btn.disabled=false; btn.textContent='▶ СКАНУВАТИ'; }
+}
+logMsg('✅ Сторінка завантажена, JS працює. Натисни «СКАНУВАТИ».');
+
+$('interval').addEventListener('change',e=>{
+  if(window._t) clearInterval(window._t);
+  const v=+e.target.value;
+  if(v>0){ window._t=setInterval(scan,v); logMsg('Автооновлення: кожні '+(v/1000)+'с'); }
+});
+$('threshold').addEventListener('change',()=>{ if($('stPairs').textContent!=='0') scan(); });
+</script>
+</body>
+</html>
